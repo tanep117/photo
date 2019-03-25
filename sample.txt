@@ -1,0 +1,43 @@
+参考URL
+https://qiita.com/nak1114/items/1f7d48ff661555726427
+
+プロジェクトの作成
+$ docker-compose run --rm web rails new . --force --database=mysql --skip-bundle
+
+//たぶん、これはいらない
+#$ docker-compose build
+
+config/database.ymlを編集する
+docker/database.yml ファイルをconfig/database.yml にコピー
+
+データベース作成
+$ docker-compose up
+$ <ctrl-C>
+$ docker-compose run --rm web rake db:create
+
+アプリ作成
+
+$ docker-compose down
+$ docker-compose run --rm web rails g scaffold item name:string amount:integer memo:text
+$ docker-compose run --rm web rake db:migrate
+$ docker-compose up -d
+
+$ docker-compose run web bundle exec db:migrate
+
+model作成
+rails g model Member
+->  docker-compose run web rails g model Member
+
+dbマイグレート
+rake db:migrate
+->  docker-compose run web rake db:migrate
+
+rails dbconsole
+->  docker-compose run web rails dbconsole
+
+オーナー権限変更
+$ sudo chown -R vagrant:vagrant .
+ 
+
+RAILS_ENV=test bundle exec rake db:setup
+->  docker-compose run -e RAILS_ENV=test web bundle exec rake db:setup

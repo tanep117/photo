@@ -1,0 +1,117 @@
+【31章　コメント投稿機能】
+
+ルーティングテーブル
+以下追加
+post '/posts/:id/comment', to: 'posts#comment', as: 'comment_post'
+
+モデル
+データベースにアクセスするためのモデルクラスを作成します。
+ここでは、 post_commentsテーブル でコメントのデータを管理するものとし、
+テーブルに対応する PostCommentクラス を作成します。
+$ rails g model postComments post:references user:references comment:text
+$ docker-compose run --r web rails g model post_comments post:references user:references comment:text
+
+DBのマイグレーション
+$ bundle exec rails db:migrate
+$ docker-compose run --rm web rake db:migrate
+
+アソシエーションによる複数テーブルの処理
+post_commentsテーブルは、postsテーブルとusersテーブルのidを外部キーとして参照しています。
+これをモデルクラスで明示する必要があります。
+PostCommentモデルクラスで以下を記述します。
+    class PostComment < ApplicationRecord
+      belongs_to :post
+      belongs_to :user
+    end
+
+PostモデルクラスとUserモデルクラスで以下を記述します。
+    class Post < ApplicationRecord
+      # リレーション
+      belongs_to :user
+      has_many :post_images, dependent: :destroy
+      has_many :post_likes, dependent: :destroy
+      has_many :post_comments, dependent: :destroy
+      .
+      .
+      .
+    end
+    
+    class User < ApplicationRecord
+      # リレーション
+      has_many :posts
+      has_many :post_images
+      has_many :post_comments
+      .
+      .
+      .
+    end
+
+コントローラ
+コメント投稿機能は、 「/app/controllers/posts_controller.rb」のcomment
+アクションで実装していきます。
+    # コメント投稿処理
+    def comment
+      # ここに処理を実装
+    end
+
+ビュー
+「/app/views/users/top.html.erb」ファイルで、コメント投稿の部分を修正する。
+formのURLが「/posts/(:id)/comment」となるように、以下のように修正します。
+    <!-- コメント入力部分 -->
+    <div class="text_wrap">
+      <%= form_for post.post_comments.new, url: comment_post_path(post) do |f| %>
+        <div class="field">
+          <%= f.text_field :comment, id: "post-comment-#{post.id}", placeholder: "コメントを入力" %>
+          <%= f.submit "送信" %>
+        </div>
+      <% end %>
+    </div>
+    
+
+31-3コメント投稿処理の実装
+どの投稿画像に対してコメントが送られたのかを判断するため、投稿IDを受け取ります。
+投稿IDは以下のようにして受け取ることができます。
+params[:id]
+
+投稿データを取得
+受け取った投稿IDをもとに、以下のようにして投稿データを取得します。
+「post_controller.rb」
+    # コメント投稿処理
+    def comment
+      @post = Post.find(params[:id])
+    end
+
+post_commentsテーブルには、コメント／投稿ID／ユーザーIDの3つが必要ですが、
+フォームから送られてくるのはコメントと投稿IDのみです。
+以下のようにパラメータを受け取り、ユーザーIDとマージするpost_comment_params
+メソッドを作っておくと便利です。
+    # コメント用パラメータを取得
+    def post_comment_params
+      params.require(:post_comment).permit(:comment).merge(user_id: current_user.id)
+    end
+
+以下のようにしてコメントを保存します。
+    # コメント投稿処理
+    def comment
+      # 投稿IDを受け取り、投稿データを取得
+      @post = Post.find(params[:id])
+     
+      # コメント保存
+      @post.post_comments.create(post_comment_params)
+    end
+
+コメント投稿処理が完了したら、トップページへリダイレクトします。
+    redirect_to top_path and return
+
+コメントの表示
+コメントをデータベースに保存することができたので、トップページに表示するよう
+ビューを修正します。
+コメントは複数あるので、eachメソッドを使ってコメントの数だけ回しています。
+    <!-- 画像へのコメント -->
+    <% post.post_comments.each do |post_comment| %>
+    <li>
+      <span class="user_name"><%= post_comment.user.name %></span>
+      <span class="caption"><%= post_comment.comment %></span>
+    </li>
+    <% end %>
+

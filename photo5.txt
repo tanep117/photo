@@ -1,0 +1,76 @@
+【26章　プロフィール更新機能】
+プロフィール画像は、「/public/users」フォルダに保存することにします。
+usersフォルダを作成しておいてください。
+
+26-2 実装の準備
+ルーティングテーブル修正
+/config/routes.rb  に
+post '/profile/edit', to: 'users#update'
+追加
+
+コントローラー修正
+/app/controllers/users_controller.rb
+以下追加
+# プロフィール編集ページ
+def edit
+  @user = User.find(current_user.id)
+end
+# プロフィール更新処理
+def update
+  # ここに処理を実装
+end
+
+ビュー修正
+最初にプロフィール編集ページを開いた時、ユーザーの情報がフォームに
+入っているようにします。
+/app/views/users/edit.html.erb
+
+26-3 プロフィール更新処理の実装
+画像データのチェック
+「/app/controllers/users_controller.rb　の update メソッド内に処理を記述する」
+プロフィール画像データがあるかどうかチェックして、画像が存在する場合は画像
+をアップロードする処理を実装します。
+画像データは以下のようにして受け取ることができます。
+upload_file = params[:user][:image]
+画像があるかどうかの条件式には、以下のようにpresentを使います。
+if upload_file.present?
+  # あった場合はこの中の処理が実行される
+end
+もし画像があった場合は、以下の処理を実行します。
+新規登録機能の処理を参考にしてください。
+画像のファイル名作成
+画像のファイルパス作成
+画像のアップロード
+upload_file_name = upload_file.original_filename
+output_dir = Rails.root.join('public','users')
+output_path = output_dir + upload_file_name
+File.open(output_path, 'w+b') do |f|
+    f.write(upload_file.read)
+end
+
+データベースのプロフィール情報更新処理
+# データベースに更新
+ユーザーのパラメタ情報はPrivateメソッドuser_paramsに入っているので、以下で更新できる
+current_user.update(user_params)
+プロフィール画像がある場合は、以下のようにして mergeメソッド を使うことで、
+データを追加することができます。
+# データベースに更新
+current_user.update(user_params.merge({image: upload_file.original_filename}))
+
+updateメソッドの最後にリダイレクト処理を記述するのを忘れないように
+    redirect_to('/profile/edit')
+    flash[:success] = "プロフィール更新したよぉ"
+    return
+
+また、user_paramsメソッドで、「comment」パラメータを受け取る処理を追加してください。
+# パラメータを取得
+def user_params
+  params.require(:user).permit(:name, :email, :password, :comment)
+end
+
+Userモデルクラスのコールバックメソッドの修正
+ユーザー新設の時はパスワードを暗号化し、更新の時は暗号化処理を再実行させないため
+/app/models/user.rb
+の　before_save :convert_password　を
+before_create :convert_password
+に変更する。

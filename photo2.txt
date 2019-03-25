@@ -1,0 +1,181 @@
+22章　ユーザー登録機能
+
+22-2実装の準備
+
+ルーティングテーブル修正
+/config/routes.rb
+post '/sign_up', to: 'users#sign_up_process'
+
+config/database.yml の修正
+(docker/database.ymlの修正も忘れないこと。)
+default: &default
+  adapter: mysql2
+  encoding: utf8
+  pool: <%= ENV.fetch("RAILS_MAX_THREADS") { 5 } %>
+  username: root
+  password:
+  host: localhost
+
+development:
+  <<: *default
+  database: camp_photo
+
+test:
+  <<: *default
+  database: camp_photo
+
+production:
+  <<: *default
+  database: camp_photo
+  username: myapp
+  password: <%= ENV['MYAPP_DATABASE_PASSWORD'] %>
+
+
+モデルの作成
+$ rails generate model user name:string email:string password:string image:string comment:text
+$ docker-compose run --rm web rails generate model user name:string email:string password:string image:string comment:text
+
+データベースの作成
+$ bundle exec rails db:create
+$ docker-compose run --rm web rake db:create
+
+テーブルの作成
+$ bundle exec rails db:migrate
+$ docker-compose run --rm web rake db:migrate
+
+DBコンソールで確認
+$ rails dbconsole
+$ docker-compose run --rm web rails dbconsole
+>show columns from users;
+
+コントローラー修正
+/app/controllers/users_controller.rb
+テキスト参照。
+
+ビュー修正
+/app/views/users/sign_up.html.erb
+テキスト参照
+
+コントローラー修正
+/app/controllers/users_controller.rb
+テキスト参照。
+
+モデル修正　パスワードの暗号化実装
+/app/models/user.rb
+テキスト参照、バリデーションも同じ個所修正
+
+DB登録処理
+/app/controllers/users_controller.rb
+修正。テキスト参照。
+
+DB登録失敗のページ修正。
+/app/views/layouts/application_not_login.html.erb
+
+エラーメッセージ用のCSSを設定します。
+「/app/assets/stylesheets/layout.scss」ファイルに追記
+
+DBにパーミッションエラーが出る場合は、chmod 666 で書き込み権限を与えるとOK
+
+課題
+/app/views/users/sign_up.html.erb
+修正　ヘルパーメソッドに書き換え
+<a href="#">サインインする</a>　を
+<%= link_to 'サインインする', '/sign_in' %>
+にする
+
+23章サインイン・サインアウト機能
+
+23-3ルーティング
+/config/routes.rb に以下追加
+post '/sign_in', to: 'users#sign_in_process'
+
+コントローラー修正
+controllers/users_controller.rb  のsing_in に
+@user = User.new 追加
+def sign_in_process
+end  
+追加　テキスト参照
+
+ビュー修正
+/app/views/users/sign_in.html.erb
+テキスト参照
+
+23-4 サインイン処理の実装
+/app/controllers/users_controller.rb
+修正。テキスト参照
+
+モジュールの作成
+/app/controllers/application_controller.rb
+自動生成されている。
+内容はテキスト参照。
+
+Usersヘルパーモジュール修正
+/app/helpers/users_helper.rb
+テキスト参照。
+
+サインイン後の処理追加
+/app/controllers/users_controller.rb
+修正。テキスト参照
+
+現在のユーザー取得
+ユーザーヘルパー追記
+/app/helpers/users_helper.rb
+テキスト参照
+
+プロフィールページのリンクの修正
+/app/views/layouts/application.html.erb
+テキスト参照
+undefined method `profile_path'でエラーになるよ？
+/config/routes.rb 
+を以下のように修正してみた。（, as: 'profile'　ついか）
+get '/profile/:id', to: 'users#show', as: 'profile'
+$ docker-compose run --rm web rake routes
+でルートを確認して、そこに表示されているルートに対して_pathを追加したら動く仕組み。
+
+ユーザー登録時のセッション保存
+/app/controllers/users_controller.rb
+追記。テキスト参照。
+
+
+23-6 サインアウトの実装
+ルーティングテーブル修正
+/config/routes.rb 
+に以下を追加
+get '/sign_out', to: 'users#sign_out', as: 'sign_out'
+
+View 修正
+/app/views/layouts/application.html.erb
+サインアウトの箇所修正。テキスト参照
+
+コントローラー修正
+/app/controllers/users_controller.rb
+に sign_out 関数の定義追加。テキスト参照。
+
+23-7　サインアウト処理の実装
+User用のヘルパーモジュールにuser_sign_out関数を定義する。
+/app/helpers/users_helper.rb
+テキスト参照。
+
+/app/controllers/users_controller.rb
+のsing_out関数の中身記述。テキスト参照。
+
+
+23-8 アクセス制限
+認証チェック
+User用のヘルパーモジュールにuser_signed_in、authorize関数を定義する。
+/app/helpers/users_helper.rb
+テキスト参照。
+
+before/afterフィルター
+Userコントローラーに定義追加。
+/app/controllers/users_controller.rb
+テキスト参照
+
+Usersヘルパーモジュールに、ユーザーがサインインしていたらトップページに遷移する
+redirect_to_top_if_signed_inメソッドを定義します。
+/app/helpers/users_helper.rb
+テキスト参照。
+
+Userコントローラーに定義追加。
+/app/controllers/users_controller.rb
+テキスト参照

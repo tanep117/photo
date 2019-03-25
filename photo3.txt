@@ -1,0 +1,139 @@
+24章　新規投稿機能
+
+24-1　概要
+投稿写真を保存する場所を作る。
+/public/images フォルダを作成すること。
+
+24-2　実装の準備
+ルーティングテーブル修正
+/config/routes.rb 
+に以下を追加するのだが、resourcesメソッドをつかって自動生成しているので追加不要。
+post '/posts', to: 'posts#create'
+
+モデル作成
+postsテーブル と post_imagesテーブル で投稿したデータを管理するものとし、
+各テーブルに対応する Postクラス と PostImageクラス を作成します。
+
+postsテーブルの作成
+$ rails generate model posts user:references caption:text
+$ docker-compose run --rm web rails generate model posts user:references caption:text
+
+post_imagesテーブルの作成
+$ rails generate model post_images post:references name:string
+$ docker-compose run --rm web rails generate model post_images post:references name:string
+
+DBマイグレート
+$ bundle exec rails db:migrate
+$ docker-compose run --rm web rails db:migrate
+
+アソシエーションによる複数テーブルの処理
+/app/models/post.rb に
+belongs_to :user　が記述されていることを確認すること。
+これにより、DBのキーがつながる。
+
+Userモデルには逆にposts DBとつながるリレーションを記述する
+/app/models/user.rb に
+has_many :posts
+追加
+
+同様にpost_images DBについてもリレーションを張る
+/app/models/post_images.rb
+に
+belongs_to :post
+追加（自動生成されてる可能性あり）
+
+post DB のリレーションには以下の記述を追記する。
+/app/models/post.rb 
+has_many :post_images, dependent: :destroy
+dependent: :destroy　を指定することにより、postsのデータを削除すると、
+それに紐づくpost_imagesのデータも自動削除してくれる。
+
+コントローラ
+「@post」変数を使ってビューに値を渡すので、コントローラのnewアクションで
+@post変数を用意しておく必要があります。
+@post変数には、Postモデルクラスをインスタンス化して格納します。
+また、登録処理は create アクションで実装していきます。+
+/app/controllers/posts_controller.rb
+に追記修正。テキスト参照。
+
+ビュー
+新規投稿ページは、ヘッダーの「投稿」アイコンをクリックした時に表示されます。
+「投稿」アイコンのリンクと合わせて、ついでにロゴのリンクもトップページへ遷移
+するよう修正しておきましょう。
+/app/views/layouts/application.html.erb
+修正。テキスト参照。
+
+新規投稿ビューのフォームタグですが、モデルに紐づくフォームになるので
+「 form_for 」メソッドを利用します。
+/app/views/posts/new.html.erb
+修正。テキスト参照。
+
+
+24-3 新規投稿処理の実装
+ユーザー登録の時と同じく、パラメータを受け取るpost_paramsメソッドを作成します。
+以下のコードでは、postsテーブルに登録する「caption」の値のみ取得しています。
+/app/controllers/posts_controller.rb
+追記。テキスト参照。
+
+フォームで送られてくるのは、画像のデータと説明文の2つになります。
+しかし、データベースに登録するには、この2つのデータ以外にログインしているユーザーIDも必要です。
+そこで、ユーザーIDを取得してパラメータに追加します。
+ユーザーIDはUserヘルパーモジュールで作成したcurrent_userを使って、「current_user.id」という指定で取得できます。
+パラメータに値を追加するには、mergeメソッドを使います。
+/app/controllers/posts_controller.rb
+の中身を以下に修正。
+params.require(:post).permit(:caption).merge(user_id: current_user.id)
+
+このpost_paramsメソッドを使って、以下のようにしてPostモデルクラスを
+インスタンス化し、@post変数に格納します。
+同じくposts_controller.rbのcreate関数内に以下追加。
+@post = Post.new(post_params)
+
+画像データがあるかどうかはblankメソッドを使って判定します。
+もし画像がない場合は、flashにメッセージを格納してビューに出力します。
+同じくposts_controller.rbのcreate関数内修正。テキスト参照。
+
+エラーメッセージ出力用に、「/app/views/layouts/application.html.erb」ファイル
+修正。テキスト参照。
+
+画像のアップロード処理
+posts_controller.rbのcreate関数の中に以下追加。
+# 画像のファイル名取得
+フォームから送られた画像データのファイル名は、original_filename メソッドを使って
+以下のように受け取ることができます。
+upload_file_name = upload_file.original_filename
+
+Rails.root を使うと、プロジェクトのルートパスを取得することができます。
+Rails.root.join を使うと、パスの加工ができます。
+output_dir = Rails.root.join('public', 'images')
+output_path = output_dir + upload_file_name
+画像のアップロード処理は以下の通り
+バイナリで書き込めるモード ('w+b') でオープンします
+File.open(output_path, 'w+b') do |f|
+  f.write(upload_file.read)
+end
+# post_imagesテーブルに登録するファイル名をPostインスタンスに格納
+@post.post_images.new(name: upload_file_name)
+# データベースに保存
+if @post.save
+    # 成功したらトップページへ遷移し、「投稿しました。」
+    # というメッセージが表示される
+    redirect_to top_path
+    flash[:success] = "投稿しました。"
+    return
+else
+    # 失敗したら再度新規投稿ページを表示し、「投稿に失敗しました。」
+    # というエラーメッセージが表示される
+    flash[:danger] = "投稿に失敗しました。"
+    redirect_to('/posts')
+end
+
+
+認証チェック
+今の状態だと、サインインしていないユーザーでも新規投稿ページにサインインできて
+しまうので、サインインしていないユーザーが新規投稿ページにアクセスしたら、
+サインインページへ遷移するよう実装します。
+Postsコントローラ「posts_controller.rb」に以下フィルターを実装します。
+# アクション処理に入る前に認証
+before_action :authorize
+

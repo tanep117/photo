@@ -1,0 +1,142 @@
+20-2　プロジェクトの開始
+$ rails new photo --database=mysql
+$ docker-compose run --rm web rails new . --force --database=mysql --skip-bundle
+
+21-1　トップページ作成
+$ rails generate controller users top
+$ docker-compose run --rm web rails g controller users top
+
+トップページのルーティングテーブル作成
+/config/routes.rb
+get部分をコメントアウトし、
+root 'users#top'
+get 'top', to:'users#top', as: :top
+
+app/views/users/top.html.erb
+書き換え
+<%= link_to 'トップ', top_path %>
+その下の記述はテキスト参照
+
+/app/views/layouts/application.html.erb
+書き換え
+テキスト参照
+
+/app/assets/stylesheets/layout.scss
+ファイル追加
+テキスト参照
+
+/app/assets/stylesheets/users.scss
+書き換え
+テキスト参照
+
+/app/assets/stylesheets/reset.scss
+ファイル追加
+テキスト参照
+
+21-3　新規投稿ページ
+新規投稿ページのコントローラジェネレート
+$ rails generate controller posts new
+$ docker-compose run --rm web rails g controller posts new
+
+ルーティングテーブル修正
+/config/routes.rb
+getをコメントアウトして以下追加
+resources :posts
+
+ルーティングの確認
+$ rails routes
+$ docker-compose run --rm web rails routes
+
+ビュー修正
+/app/views/posts/new.html.erb
+テキスト参照
+
+新規投稿ページのCSS修正
+/app/assets/stylesheets/posts.scss
+テキスト参照
+
+21-5 プロフィールページ作成
+$ rails generate controller users show
+$ docker-compose run --rm web rails g controller users show
+
+修正 show追記
+app/controllers/users_controller.rb
+
+ルーティングテーブル修正
+/config/routes.rb
+以下追記
+get '/profile/:id', to: 'users#show'
+
+/app/views/users/show.html.erb 修正
+テキスト参照。
+
+/app/assets/stylesheets/users.scss  修正
+テキスト参照。
+
+21-7プロフィール編集ページ作成
+ルーティングテーブル修正
+/config/routes.rb
+以下追記
+get '/profile/edit', to: 'users#edit', as: 'profile_edit'
+(get '/profile/:id', to: 'users#show'の上に追加すること！)
+
+/app/views/users/edit.html.erb 新規作成
+テキスト参照。
+
+/app/assets/stylesheets/users.scss 
+最下部に追記。テキスト参照。
+
+21-9　フォロワーリストページ作成
+ルーティングテーブル修正
+/config/routes.rb
+以下追記
+get '/follower_list/:id', to: 'users#follower_list', as: 'follower_list'
+
+/app/views/users/follower_list.html.erb
+新規作成。テキスト参照。
+
+/app/assets/stylesheets/users.scss
+最下部に追記。テキスト参照。
+
+21-11 フォローリストページ作成
+ルーティングテーブル修正
+/config/routes.rb
+以下追記
+get '/follow_list/:id', to: 'users#follow_list', as: 'follow_list'
+
+/app/views/users/follow_list.html.erb
+新規作成。テキスト参照。
+
+21-13 ユーザー登録ページ
+ルーティングテーブル修正
+/config/routes.rb
+以下追記
+get '/sign_up', to: 'users#sign_up', as: 'sign_up'
+
+/app/views/users/sign_up.html.erb
+新規作成。テキスト参照。
+
+/app/views/layouts/application_not_login.html.erb
+新規作成。テキスト参照。
+
+/app/controllers/users_controller.rb
+修正。テキスト参照
+
+/app/assets/stylesheets/users.scss
+最下部に追記。テキスト参照。
+
+背景画像を
+/app/assets/images
+にbg.jpgの名前で保存
+
+21-15　サインインページ作成
+ルーティングテーブル修正
+/config/routes.rb
+以下追記
+get '/sign_in', to: 'users#sign_in', as: 'sign_in'
+
+/app/views/users/sign_in.html.erb
+新規作成。テキスト参照。
+
+/app/controllers/users_controller.rb
+修正。テキスト参照

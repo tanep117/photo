@@ -1,0 +1,72 @@
+25章　プロフィール表示機能
+
+25-2 実装の準備
+ルーティングテーブル
+/config/routes.rb 
+get '/profile/:id', to: 'users#show'
+だが、上記はもうできている。
+
+コントローラー
+/app/controllers/users_controller.rb
+内の show アクションを使う。
+
+25-3プロフィール表示処理の実装
+usersコントローラ内に記述していく。
+
+ユーザー情報取得
+@user = User.find(params[:id])
+追記
+
+ユーザーの投稿データ取得
+@posts = Post.where(user_id: @user.id)
+追記
+
+ビュー側でユーザーのプロフィール情報を表示する
+プロフィール画面のビューは
+/app/views/users/show.html.erb
+これの、ユーザー名とコメント部分を以下のように書き換える。
+<!-- ユーザー名 -->
+<%= @user.name %>
+<!-- コメント -->
+<%= @user.comment %>
+
+ユーザーのプロフィール画像に関しては、もし画像を登録していなかったら
+ダミー画像を指定するimage_urlメソッドをUsersヘルパーモジュールに定義しましょう。
+/app/helpers/users_helper.rb
+追記。テキスト参照。
+
+ビューの方で <%= image_url(@user) %> と指定することで、Helperクラスの
+image_urlメソッドを呼び出して処理をすることができます。
+プロフィールビュー修正。
+<div class="image">
+  <div style="background: url('<%= image_url(@user) %>'); background-position: 50%; background-size: cover;"></div>
+</div>
+
+投稿データの表示
+投稿データは@postsにハッシュで入っているため、eachを使って出力します。
+また、Postモデルクラスで has_many :post_images とアソシエーションを指定したので、
+モデルにはpost_imagesという複数形でデータが入ることになります。
+そのため、post_imagesのデータはeachを使うことで取り出すことができます。
+プロフィールビュー「show.html.erb」の修正。テキスト参照。
+
+投稿件数の箇所修正
+<p class="posts_count">投稿数 <%= @user.posts.length %>件</p>
+
+編集権限
+プロフィールの編集は、サインインしているユーザー自身のプロフィールのみが編集でき、
+他のユーザーは編集できないことが望ましいです。
+そのため、自分以外のユーザーに関しては、「プロフィール編集」ボタンを表示しない
+ようにします。
+以下のように、@post.idとcurrent_user.idの値が等しかったら、ログインしている
+ユーザーとプロフィールのユーザーが同一のため 「プロフィール編集」ボタンを表示
+するようにします。
+<div class="actions">
+  <% if @user.id == current_user.id %>
+  <div class="edit">
+    <%= link_to "プロフィール編集", profile_edit_path %>
+  </div>
+  <% end %>
+</div>
+
+
+

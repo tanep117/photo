@@ -1,0 +1,43 @@
+version: '2'
+services:
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin
+    environment:
+      - PMA_ARBITRARY=1
+      - PMA_HOST=db2
+      - PMA_USER=root
+      - PMA_PASSWORD=password
+    depends_on:
+      - db2
+    links:
+      - db2
+    ports:
+      - 8080:80
+    volumes:
+      - ./mysql-data:/path/to/data
+  db2:
+    image: mysql:5.7.17
+    ports:
+      - "3306:3306"
+    volumes:
+      - ./docker/mysql/volumes:/var/lib/mysql
+    extends:
+      file: ./docker/mysql/password.yml
+      service: password
+    command: --innodb-use-native-aio=0
+  web:
+    build:
+      context: .
+      dockerfile: ./docker/rails/Dockerfile
+    command: bundle exec rails s -p 3000 -b '0.0.0.0'
+    ports:
+      - "3000:3000"
+    volumes:
+      - .:/myapp
+    environment:
+      RAILS_ENV: development
+    extends:
+      file: ./docker/mysql/password.yml
+      service: password
+    depends_on:
+      - db2

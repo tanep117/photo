@@ -1,0 +1,139 @@
+【32章　フォロー機能】
+
+ルーティング
+フォロー処理のルーティングは以下のとおりです。
+    get '/follow/:id', to: 'users#follow', as: 'follow'
+
+モデル
+データベースにアクセスするためのモデルクラスを作成します。
+ここでは、 followsテーブル でフォローのデータを管理するものとし、テーブルに
+対応する Followクラス を作成します。
+$ rails generate model follow user:references
+$ docker-compose run --rm web rails generate model follow user:references
+
+マイグレーションファイル「/db/migrate/yyyymmddhhmmss_create_follows.rb」を開き、
+以下を追加します。
+    class CreateFollows < ActiveRecord::Migration[5.1]
+      def change
+        create_table :follows do |t|
+          t.references :user, foreign_key: true
+          t.references :follow_user
+     
+          t.timestamps
+        end
+      end
+    end
+
+マイグレートしてテーブルを作成します。
+$ bundle exec rails db:migrate
+$ docker-compose run --rm web rails db:migrate
+
+アソシエーションによる複数テーブルの処理
+followsテーブルは、usersテーブルのidを外部キーとして参照しています。
+これをモデルクラスで明示する必要があります。
+Followモデルクラスで以下を記述します。
+アソシエーションで利用できるオプションとして、 class_nameオプション があります。
+class_nameオプションは、関連モデルのクラス名を指定します。
+belongs_to :follow_user と指定していますが、実際にFollowUserというモデルはない
+ため、Userモデルを参照するように指定しています。
+    class Follow < ApplicationRecord
+      belongs_to :user
+      belongs_to :follow_user, class_name: "User"
+    end
+
+反対に、usersテーブルはfollowsテーブルから参照されています。
+こちらもモデルクラスで明示する必要があります。
+Userモデルクラスで以下を記述します。
+Usersテーブルのuser_idは、followsテーブルのuser_idとfollow_user_idの外部キーに
+なるため、foreign_keyオプション を使って関連で使用する外部キーの名前を指定します。
+    class User < ApplicationRecord
+      # リレーション
+      has_many :posts
+      has_many :post_images
+      has_many :post_comments
+      has_many :follows
+      has_many :followers, foreign_key: :follow_user_id, class_name: "Follow"
+      .
+      .
+      .
+    end
+
+コントローラ
+フォロー機能は、users_controller.rbの follow アクションで実装していきます。
+    # フォロー処理
+    def follow
+      # ここに処理を実装
+    end
+
+「/app/views/users/show.html.erb」ファイルで、現在「フォローする」ボタンはなく、
+「編集する」ボタンだけ存在します。
+プロフィールページのユーザーIDがログインしているユーザーIDだったら「編集する」
+ボタンを表示し、そうでなかったら「フォローする」ボタンを表示するよう実装します。
+    <% if @user.id == current_user.id %>
+    <div class="edit">
+      <%= link_to "プロフィール編集", profile_edit_path %>
+    </div>
+    <% else %>
+    <div class="follow">
+      <%= link_to "フォローする", follow_path(@user.id) %>
+    </div>
+    <% end %>
+
+32-3 フォロー処理の実装
+ユーザー情報を取得
+# フォロー処理
+def follow
+  @user = User.find(params[:id])
+end
+
+パラメータで送られてきたユーザーに関して、フォロー済みかそうでないかの
+ステータスを確認します。
+SELECTした結果がある時は、既にフォローしていることになるのでデータを削除します。
+もし結果がない時は、フォローしていないので登録することになります。
+データが存在するか確認する時はfindメソッドではなくexistsメソッドを使うと便利です。
+今回の条件では以下のように書くことができます。
+    if Follow.exists?(user_id: current_user.id, follow_user_id: @user.id)
+      # フォローを解除
+    else
+      # フォローする
+    end
+
+既にフォローしていたら、削除する処理を実装します。
+finde_byメソッドで条件を指定して削除するデータを取得し、destroyメソッドを実行
+して削除します。
+以下のように1行でまとめて書くこともできます。
+    Follow.find_by(user_id: current_user.id, follow_user_id: @user.id).destroy
+
+フォローしていなかったら、followsテーブルにデータを登録します。
+データを登録する時に、Railsにはsaveメソッドと createメソッド があります。
+createメソッドはnewとsaveを一度に実行することができます。
+    Follow.create(user_id: current_user.id, follow_user_id: @user.id)
+
+フォロー処理後のリダイレクトについて
+フォロー処理が完了したら、直前のページ(プロフィールページ)へリダイレクトする
+ようにします。
+直線のページにリダイレクトする場合は、以下のように redirect_backメソッド を
+使用します。
+    redirect_back(fallback_location: top_path, notice: "フォローを更新しました。")
+
+フォローしたらボタンの表記を変える
+自分がフォローしたユーザーのプロフィールページでは、フォローのボタンは
+「フォロー解除」という表記になるようにします。
+Userモデルクラスに以下のようなfollowed_byメソッドを作成します。
+引数として渡されたユーザーデータのIDをもとに、followsテーブルにデータが存在する
+かチェックするメソッドです。
+    # ユーザーがフォローされているかどうかを判定
+    def followed_by?(user)
+      user.follows.exists?(follow_user_id: self.id)
+    end
+
+「/app/views/users/show.html.erb」ファイルで、以下のようにfollowed_byメソッド
+を呼び出します。
+followed_byメソッドの実行結果がtrue(フォロー済み)だったら「フォロー解除」、
+false(未フォロー)だったら「フォローする」の文字が表示されるようになります。
+    <div class="follow">
+      <%= link_to @user.followed_by?(current_user)? "フォロー解除": "フォローする", follow_path(@user.id) %>
+    </div>
+
+32-4 課題
+フォロワー人数などの表示は次章でやる。

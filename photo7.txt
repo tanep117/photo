@@ -1,0 +1,150 @@
+【29章　キーワード検索機能】
+ルーティングテーブル
+topに対してのルート。実装済
+
+コントローラー
+users_controller.rb のtop アクションにて実装する
+
+ビュー
+/app/views/layouts/application.html.erb
+
+topアクションに「もしnameパラメータの値があったら検索処理をし、
+そうでなかったら一覧表示処理をする」という条件式を追加します。
+検索フォームのinputタグ内で　name="word"となっているので以下のようになる。
+# トップページ
+def top
+  if params[:word].present?
+    # キーワード検索処理
+  else
+    # 一覧表示処理
+  end
+end
+
+キーワードがある場合
+Railsではwhereメソッドを使って以下のように書くことができます。
+「?」の部分に、第二引数の「%#{params[:word]}%」が入ります。
+@posts = Post.where("caption like ?", "%#{params[:word]}%").order("id desc")
+
+
+-------------------------------------------------------------------------
+【30章　いいね機能】
+ルーティングテーブル修正
+ resourcesを使用すると、主要なルーティングが自動的に追加されますが、それ以外
+ のルーティングをそのリソースに追加したい場合はmemberを使用します。
+ resources :posts do
+  member do
+    # いいね
+    get 'like', to: 'posts#like', as: :like
+  end
+end
+ 
+$ docker-compose run --rm web rails routes
+で確認すると
+like_post GET    /posts/:id/like(.:format)    posts#like
+とできている。memberを使用した場合の名前付きルートは like_path ではなく、 
+like_post_path のように上位のリソース名を後に指定する形になります。
+
+
+モデル
+post_likesテーブル でいいねのデータを管理するものとし、テーブルに対応する 
+PostLikeクラス を作成します。
+$ rails generate model postLike post:references user:references
+$ docker-compose run --rm web rails generate model postLike post:references user:references
+
+マイグレートしてテーブルを作成します。
+$ bundle exec rails db:migrate
+$ docker-compose run --rm web rails db:migrate
+
+アソシエーションによる複数テーブルの処理
+post_likesテーブルは、postsテーブルとusersテーブルのidを外部キーとして参照しています。
+これをモデルクラスで明示する必要があります。
+PostLikeモデルクラスで以下を記述します。
+class PostLike < ApplicationRecord
+  belongs_to :user
+  belongs_to :post
+end
+(自動生成されてた)
+
+反対に、postsテーブルとusersテーブルはpost_likesテーブルから参照されています。
+こちらもモデルクラスで明示する必要があります。
+class Post < ApplicationRecord
+  # リレーション
+  belongs_to :user
+  has_many :post_images, dependent: :destroy
+  has_many :post_likes, dependent: :destroy
+end
+
+class User < ApplicationRecord
+  # リレーション
+  has_many :posts
+  has_many :post_likes
+  .
+  .
+  .
+end
+
+コントローラ
+いいね機能の処理は、posts_controller.rbの like アクションで実装していきます。
+  # いいね処理
+  def like
+    # ここに処理を実装
+  end
+  
+「/app/views/users/top.html.erb」ファイルのいいねアイコン部分修正
+<%= link_to like_post_path(post) do %>
+  <i class="fa fa-heart-o"></i><!-- いいねを押してない時のハート -->
+<% end %>
+
+30-3 いいね処理の実装
+posts_controller.rbの like アクションに記述していく
+以下のようにして、パラメータの投稿IDに紐づく投稿データを取得します。
+@post = Post.find(params[:id])
+
+パラメータで送られてきた投稿IDの画像に対して、いいねが押されているかどうかの
+ステータスを確認します。
+Railsでは、データが存在するか確認する時はfindメソッドではなくexistsメソッドを
+使うと便利です。
+今回の条件では以下のように書くことができます。
+if PostLike.exists?(post_id: @post.id, user_id: current_user.id)
+  # いいねを削除
+else
+  # いいねを登録
+end
+
+いいねが既に押されていたら、削除する処理を実装します。
+finde_byメソッドで条件を指定して削除するデータを取得し、destroyメソッドを実行
+して削除します。
+以下のように1行でまとめて書くこともできます。
+PostLike.find_by(post_id: @post.id, user_id: current_user.id).destroy
+
+いいねが押されていなかったら、post_likesテーブルにデータを登録します。
+データを登録する時に、Railsにはsaveメソッドと createメソッド があります。
+createメソッドはnewとsaveを一度に実行することができます。
+PostLike.create(post_id: @post.id, user_id: current_user.id)
+
+いいね処理が完了したら、トップページへリダイレクトします。
+redirect_to top_path and return
+
+いいねが押されたらアイコンの色を変える
+自分が「いいね」を押した画像の「♡」アイコンは、色が変わるようにします。
+Postモデルクラス「/app/models/post.rb」に以下のようなlike_fromメソッドを作成します。
+引数として渡されたユーザーデータのIDをもとに、post_likesテーブルにデータが
+存在するかチェックするメソッドです。
+# 投稿が特定のユーザーにいいね！されているかどうかを判定
+def like_from?(user)
+  self.post_likes.exists?(user_id: user.id)
+end
+
+「/app/views/users/top.html.erb」ファイルで、以下のようにlike_fromメソッド
+を呼び出します。
+<%= link_to like_post_path(post) do %>
+  <i class="fa <%= post.like_from?(current_user)? "fa-heart active" : "fa-heart-o" %>"></i>
+<% end %>
+
+30-4 課題
+いいねの投稿数表示をつくる
+    <div class="like">
+      <p>いいね 3件</p>
+    </div>
+の中を以下のように修正する
+<p>いいね <%= post.post_likes.length %>件</p>

@@ -1,0 +1,126 @@
+【34章　レコメンド機能】
+34-3 レコメンドユーザー表示処理の実装
+ユーザーの取得
+レコメンドユーザーの表示条件は、以下のとおりです。
+    1.ログインユーザー以外
+    2.ログインユーザーがフォローしているユーザー以外
+    3.3件まで表示
+「ログインユーザー 以外」かつ「ログインユーザーのフォローユーザー 以外」を3件
+まで取得するSQLを、Railsでは以下のように書くことができます。
+Railsでは、否定の条件を使う場合 where.not を使います。
+    @recommends = User.where.not(id: current_user.id).where.not(id: current_user.follows.pluck(:follow_user_id)).limit(3)
+
+「/app/views/users/top.html.erb」ファイルを開き、取得したデータが表示される
+よう編集していきます。
+レコメンドユーザー情報が入っている@recommends変数の値はハッシュ形式のため、
+eachを使って件数分だけ回します。
+以下のように、<li>タグを囲む形になります。
+    <div class="recommend">
+      <h2>おすすめ</h2>
+      <ul>
+        <% @recommends.each do |user| %>
+        <li>
+          <a href="#">
+            <img src="https://dummyimage.com/200/f6d580/fff">
+            <p>田中一郎</p>
+          </a>
+          <a class="button" href="#">フォローする</a>
+        </li>
+        <% end %>
+      </ul>
+    </div>
+
+アイコン画像とユーザー名も、データベースから取得した値が表示されるよう修正します。
+また、「フォローする」ボタンをクリックした時にユーザーをフォローできるよう、
+リンクも修正します。
+    <div class="recommend">
+      <h2>おすすめ</h2>
+      <ul>
+        <% @recommends.each do |user| %>
+        <li>
+          <%= link_to profile_path(user) do %>
+            <img src="<%= image_url(user) %>">
+            <p><%= user.name %></p>
+          <% end %>
+          <%= link_to "フォローする", follow_path(user), class: "button" %>
+        </li>
+        <% end %>
+      </ul>
+    </div>
+
+データが空の時
+レコメンドユーザーが1件もない場合は、レコメンドユーザーの枠を表示しないようにします。
+以下のように、<div class="recommend">タグをif文で囲みます。
+    <% if @recommends.any? %>
+    <div class="recommend">
+      <h2>おすすめ</h2>
+      .
+      .
+      .
+    </div>
+    <% end %>
+
+
+
+【35章 gem】
+35-2 ページング機能の実装(kaminari)
+ここでは、外部gemの導入例としてページング機能を実装する「kaminari」を紹介します。
+
+kaminariのインストール
+アプリルート直下に、「Gemfile」という名前のgemライブラリを管理するための
+ファイルが用意されているので、 以下のようにkaminariを追加します。
+    gem 'kaminari'
+
+Gemfileを保存し、Railsサーバーを停止してから以下のコマンドを実行して
+gemライブラリをインストールします。
+    $ bundle install
+
+bundle install は、外部gemを管理するためのRubyGems管理ツールで、Gemfile上で記述されているgemの依存関係を解決し、必要なパッケージをインストールしてくれます。
+bundle install を実行した後は、Railsサーバーを再起動してください。
+
+コントローラ側の設定
+Usersコントローラのtopアクションで、データを取得している部分に以下のように
+pageメソッドを追加します。
+    @posts = Post.all.order("id desc").page(params[:page])
+
+ビュー側の設定
+トップページのビュー(/app/views/users/top.html.erb)で、ページングを表示
+できるよう設定します。
+上部には現在いくつ表示しているかを表示します。
+下部にはページネーションのリンクを表示します。
+    <div class="top container">
+    <% if @posts.any? %>
+      <ul class="posts">
+        <div><%= page_entries_info @posts %></div>
+        <% @posts.each do |post| %>
+        <li>
+        .
+        .
+        .
+        </li>
+        <% end %>
+        <div><%= paginate @posts %></div>
+      </ul>
+      .
+      .
+      .
+
+これで、トップページにページネーションが表示されるようになります。
+
+kaminariの設定
+例えば、以下のように1ページに表示する件数をカスタマイズすることもできます。
+Postモデルクラスに記述しています。
+    class Post < ApplicationRecord
+      # 1ページあたり3項目表示
+      paginates_per 3
+      .
+      .
+      .
+    end
+
+その他詳細については、kaminariのGitHubを参照してください。
+
+このように、gemを使いこなすことで、より早くより簡単に機能を実装することが
+できます。 次章の最終課題でも、余裕のある人はgemを使って機能を実装してみて
+ください。
+

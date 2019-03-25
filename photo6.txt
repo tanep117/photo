@@ -1,0 +1,128 @@
+【27章　トップ画面の一覧表示機能】
+コントローラは「users_controller.rb」のtopアクションに実装していく
+
+トップ画面では、全投稿データを投稿の新しい順(idの降順)で表示します。 昇順／降順
+を指定して全件データを取得する場合は、 order メソッドを使って以下のように実装
+します。
+# トップページ
+def top
+  @posts = Post.all.order("id desc")
+end
+
+「/app/views/users/top.html.erb」ファイルを開き、取得したデータが表示されるよう
+編集していきます。
+投稿データが入っている@posts変数の値はハッシュ形式のため、eachを使って件数分だけ
+回します。
+以下のように、<li>タグを囲む形になります。
+<div class="top container">
+  <ul class="posts">
+    <% @posts.each do |post| %>
+    <li>
+    .
+    .
+    .
+    </li>
+    <% end %>
+  </ul>
+
+まずは投稿者のアイコンが表示されるようにします。
+Usersヘルパーモジュールに作成した、投稿者のアイコン画像を取得するimage_url
+メソッドを使います。
+また、投稿者の名前をクリックすると投稿者のプロフィールページへ遷移するよう
+リンクも指定します。
+<!-- 投稿者のアイコン -->
+<div class="user">
+  <div style="background: url('<%= image_url(post.user) %>'); background-position: center; background-size: cover" class="image"></div>
+  <p><%= link_to post.user.name, profile_path(post.user) %></p>
+</div>
+
+次に、投稿画像が表示されるようにします。
+Postモデルクラスで has_many :post_images とアソシエーションを指定したので、
+モデルにはpost_imagesという複数形でデータが入ることになります。
+そのため、画像のデータはeachを使って取り出します。
+<!-- 投稿画像 -->
+<% post.post_images.each do |post_image| %>
+<div class="image_wrap">
+  <%= image_tag "/images/#{post_image.name}" %>
+</div>
+<% end %>
+
+キャプションも表示されるようにします。
+キャプションは、「もしキャプションがあったら表示する」という条件になるので、
+presentメソッドを使って以下のように実装します。
+<!-- 投稿者のキャプション -->
+<% if post.caption.present? %>
+<li>
+  <span class="user_name"><%= post.user.name %></span>
+  <span class="caption"><%= post.caption %></span>
+</li>
+<% end %>
+
+データが空の時
+投稿画像が1件もない場合は、「投稿がありません。」とメッセージが表示されるように
+します。
+以下のように、<ul>タグの前後にif文を入れて切り分けます。
+<div class="top container">
+  <% if @posts.any? %>
+  <ul class="posts">
+  .
+  .
+  .
+  </ul>
+  <% else %>
+  <p class="empty">投稿がありません。</p>
+  <% end %>
+
+
+
+【28章　投稿画像の削除機能】
+ルーティングテーブルに以下追加だが、resourcesメソッドを使って実装済みなので
+登録不要
+delete '/posts/:id', to: 'posts#destroy'
+
+コントローラー
+posts_controller内にdestroyアクションを追記して実装していく。
+# 投稿を削除
+def destroy
+  # ここに処理を実装
+end
+
+ビュー
+投稿画像の削除は、サインインしているユーザー自身が実行でき、他のユーザーは削除
+できないことが望ましいです。
+そのため、自分以外のユーザーに関しては、削除用の「×」アイコンを表示しないように
+します。
+以下のように、@post.idとcurrent_user.idの値が等しかったら、「×」アイコンを表示
+するようにします。
+top.html.erb 修正
+<% if post.user_id == current_user.id %>
+  <%= link_to post_path(post), method: :delete do %>
+    <i class="fa fa-close"></i>
+  <% end %>
+<% end %>
+
+
+28-3　削除処理の実装
+削除するデータを取得
+URLのパラメータで削除する投稿IDが送られてくるので、削除するデータを取得するには
+以下のように実装します。
+posts_controller内のdeleteアクションに追加
+# 投稿を取得
+@post = Post.find(params[:id])
+
+データベースからデータを削除
+データを削除する場合は destroy メソッドを使います。
+@post.destroy
+結果以下のように追加します。
+    if @post.destroy
+      #成功
+      redirect_to  top_path
+      flash[:success] = "投稿を削除しました。"
+      return
+    else
+      #失敗
+      redirect_to  top_path
+      flash[:danger] = "削除に失敗しました。"
+      return
+    end
+

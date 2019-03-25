@@ -1,0 +1,292 @@
+【33章フォロー・フォロワーリスト表示機能】
+
+コントローラ
+フォロー一覧表示処理は、users_controller.rbの follow_list アクションで実装していきます。
+プロフィールデータを表示するため、プロフィール情報を取得しておきます。
+    # フォローリスト
+    def follow_list
+        # プロフィール情報の取得
+        @user = User.find(params[:id])
+        # ここに処理を実装
+    end
+
+ビュー
+フォローリストページとプロフィールページですが、デザインは以下のプロフィールの
+部分が共通しています。
+共通している部分は、 部分テンプレート として切り出すことができます。
+「/app/views/users/_profile.html.erb」ファイルを作成し、show.html.erbのプロフィールの部分を切り取って貼り付けます。
+部分テンプレートにするファイルは、ファイル名に「_」をつけます。
+  <!-- プロフィール部分 -->
+  <div class="profile">
+    <div class="image">
+      <div style="background: url('<%= image_url(@user) %>'); background-position: 50%; background-size: cover;"></div>
+    </div>
+    <div class="info">
+      <div class="name">
+        <h1>
+          <!-- ユーザー名 -->
+          <%= @user.name %>
+        </h1>
+        <div class="actions">
+          <% if @user.id == current_user.id %>
+          <div class="edit">
+            <%= link_to "プロフィール編集", profile_edit_path %>
+          </div>
+          <% else %>
+          <div class="follow">
+            <%= link_to @user.followed_by?(current_user)? "フォロー解除": "フォローする", follow_path(@user.id) %>
+          </div>
+          <% end %>
+        </div>
+      </div>
+      <div class="status">
+        <p class="posts_count">投稿数 <%= @user.posts.length %>件</p>
+        <p class="follower_count">
+          <a href="#">フォロワー<%= @user.get_followers(@user) %>人</a>
+        </p>
+        <p class="follow_count"><a href="#"><%= @user.follows.length %>人をフォロー中</a></p>
+      </div>
+      <div class="comment">
+        <%= @user.comment %>
+      </div>
+    </div>
+  </div>
+
+show.html.erbファイルで、切り取ったところを以下のように書き換えます。
+render partical を使うことで、テンプレートを呼び出すことができます。
+    <%= render partial: 'users/profile' %>
+
+follow_list.html.erbファイルも、テンプレートを使って同様にプロフィール部分を
+呼び出すことができます。
+    <%= render partial: 'users/profile' %>
+
+また、プロフィールページの「○人をフォロー中」のリンクをクリックした時に
+フォローリストページが表示されるよう、_profile.html.erbファイルの以下リンク
+も修正しておきましょう。
+    <p class="follow_count"><a href="#"><%= @user.follows.length %>人をフォロー中</a></p>
+を下記のように修正。
+    <p class="follow_count"><%= link_to @user.follows.length.to_s + "人をフォロー中", follow_list_path(@user) %>
+
+33-3 フォロー一覧表示処理の実装
+データの取得
+フォローしているユーザーのデータ取得の流れは以下のとおりです。
+1.followsテーブルから、フォローしているユーザーIDを取得する
+2.usersテーブルから、1で取得したユーザーIDに紐づくユーザーの情報を取得する
+SQLをRailsでは以下のように書くことができます。
+  @users = User.where(id: Follow.where(user_id: @user.id).pluck(:follow_user_id))
+pluckメソッド は、指定した列を配列として取得することができます。
+上記では、followsテーブルのfollow_user_idを配列として取得し、whereメソッドの
+条件に入れています。
+まとめると、データ取得の処理は以下のようになります。
+  # フォローリスト
+  def follow_list
+    @user = User.find(params[:id])
+    @users = User.where(id: Follow.where(user_id: @user.id).pluck(:follow_user_id))
+  end
+
+「/app/views/users/follow_list.html.erb」ファイルを開き、取得したデータが表示
+されるよう編集していきます。
+ユーザー情報が入っている@users変数の値はハッシュ形式のため、eachを使って件数分
+だけ回します。
+以下のように、<li>タグを囲む形になります。
+  <!-- フォローリスト部分 -->
+  <h1>フォロー</h1>
+  <ul class="users">
+    <% @users.each do |user| %>
+    <li>
+      <div style="background: url('https://dummyimage.com/200/b492cc/fff'); background-position: 50%; background-size: cover;" class="image"></div>
+      <a href="#">
+        <span class="name">田上士郎</span>
+      </a>
+      <a class="button" href="#">フォロー解除</a>
+    </li>
+    <% end %>
+  </ul>
+
+アイコン画像とユーザー名も、データベースから取得した値が表示されるよう修正します。
+また、ユーザー名をクリックした時にユーザーのプロフィールページへ遷移するよう、
+リンクも修正します。
+  <!-- フォローリスト部分 -->
+  <h1>フォロー</h1>
+  <ul class="users">
+    <% @users.each do |user| %>
+    <li>
+      <div style="background: url('<%= image_url(user) %>'); background-position: 50%; background-size: cover;" class="image"></div>
+      <%= link_to profile_path(user) do %>
+        <span class="name"><%= user.name %></span>
+      <% end %>
+      <a class="button" href="#">フォロー解除</a>
+    </li>
+    <% end %>
+  </ul>
+
+フォローしていないユーザーには「フォローする」、フォローしているユーザーに
+関しては「解除する」とボタンの表記が変わるようにします。
+32章でUserモデルクラスに作成したfollowed_byメソッドを使用します。
+**********************************************
+  <!-- フォローリスト部分 -->
+  <h1>フォロー</h1>
+  <ul class="users">
+    <% @users.each do |user| %>
+    <li>
+      <div style="background: url('<%= image_url(user) %>'); background-position: 50%; background-size: cover;" class="image"></div>
+      <%= link_to profile_path(user) do %>
+        <span class="name"><%= user.name %></span>
+      <% end %>
+      <% if user.id != current_user.id %>
+      <%= link_to user.followed_by?(current_user)? "フォロー解除": "フォローする", follow_path(user.id), class: "button" %>
+      <% end %>
+    </li>
+    <% end %>
+  </ul>
+
+フォローしている人数に関しては、以下のように lengthメソッド を使って
+出力することができます。
+  <p class="follow_count"><%= link_to "#{@user.follows.length}人をフォロー中", follow_list_path(@user) %></p>
+
+データが空の時
+フォローしているユーザーが1件もない場合は、「ユーザーが存在しません。」
+とメッセージが表示されるようにします。
+以下のように、<ul>タグの前後にif文を入れて切り分けます。
+  <!-- フォローリスト部分 -->
+  <h1>フォロー</h1>
+  <% if @users.any? %>
+    <ul class="users">
+    .
+    .
+    .
+    </ul>
+  <% else %>
+    <p class="empty">ユーザーが存在しません。</p>
+  <% end %>
+
+
+33-4 課題
+【フォロワー一覧表示機能】
+コントローラ
+フォロー一覧表示処理は、users_controller.rbの follower_list アクションで実装
+していきます。
+プロフィールデータを表示するため、プロフィール情報を取得しておきます。
+    # フォローリスト
+    def follower_list
+        # プロフィール情報の取得
+        @user = User.find(params[:id])
+        # ここに処理を実装
+    end
+
+ビュー
+フォローリストページとプロフィールページですが、デザインは以下のプロフィールの
+部分が共通しています。
+共通している部分は、 部分テンプレート として切り出すことができます。
+「/app/views/users/_profile.html.erb」ファイルに切り出されています。
+follower_list.html.erbファイルは、テンプレートを使って同様にプロフィール部分を
+呼び出すことができます。
+    <%= render partial: 'users/profile' %>
+
+また、プロフィールページの「フォロワーo人」のリンクをクリックした時に
+フォローリストページが表示されるよう、_profile.html.erbファイルの以下リンク
+も修正しておきましょう。
+    <a href="#">フォロワー<%= @user.get_followers(@user) %>人</a>
+を下記のように修正。
+    <%= link_to "フォロワー#{@user.get_followers(@user)}人", follower_list_path(@user) %>
+
+フォロワー一覧表示処理の実装
+データの取得
+フォローされているユーザーのデータ取得の流れは以下のとおりです。
+1.followsテーブルから、フォローされているユーザーIDを取得する
+2.usersテーブルから、1で取得したユーザーIDに紐づくユーザーの情報を取得する
+SQLをRailsでは以下のように書くことができます。
+  @followers = User.where(id: Follow.where(follow_user_id: @user.id).pluck(:user_id))
+pluckメソッド は、指定した列を配列として取得することができます。
+上記では、followsテーブルのuser_idを配列として取得し、whereメソッドの
+条件に入れています。
+まとめると、データ取得の処理は以下のようになります。
+  # フォローリスト
+  def follower_list
+    @user = User.find(params[:id])
+    @followers = User.where(id: Follow.where(follow_user_id: @user.id).pluck(:user_id))
+  end
+
+「/app/views/users/follower_list.html.erb」ファイルを開き、取得したデータが表示
+されるよう編集していきます。
+ユーザー情報が入っている@followers変数の値はハッシュ形式のため、eachを使って件数分
+だけ回します。
+以下のように、<li>タグを囲む形になります。
+  <!-- フォロワーリスト部分 -->
+  <h1>フォロワー</h1>
+  <ul class="users">
+    <% @followers.each do |follower| %>
+    <li>
+      <div style="background: url('https://dummyimage.com/200/b492cc/fff'); background-position: 50%; background-size: cover;" class="image"></div>
+      <a href="#">
+        <span class="name">田上士郎</span>
+      </a>
+      <a class="button" href="#">フォロー解除</a>
+    </li>
+    <% end %>
+  </ul>
+
+アイコン画像とユーザー名も、データベースから取得した値が表示されるよう修正します。
+また、ユーザー名をクリックした時にユーザーのプロフィールページへ遷移するよう、
+リンクも修正します。
+  <!-- フォロワーリスト部分 -->
+  <h1>フォロワー</h1>
+  <ul class="users">
+    <% @followers.each do |follower| %>
+    <li>
+      <div style="background: url('<%= image_url(follower) %>'); background-position: 50%; background-size: cover;" class="image"></div>
+      <%= link_to profile_path(follower) do %>
+        <span class="name"><%= follower.name %></span>
+      <% end %>
+      <a class="button" href="#">フォロー解除</a>
+    </li>
+    <% end %>
+  </ul>
+
+フォローしてされていないユーザーには「フォローする」、フォローされているユーザー
+に関しては「解除する」とボタンの表記が変わるようにします。
+32章でUserモデルクラスに作成したfollowed_byメソッドを使用します。
+  <!-- フォロワーリスト部分 -->
+  <h1>フォロワー</h1>
+  <ul class="users">
+    <% @followers.each do |follower| %>
+    <li>
+      <div style="background: url('<%= image_url(follower) %>'); background-position: 50%; background-size: cover;" class="image"></div>
+      <%= link_to profile_path(follower) do %>
+        <span class="name"><%= follower.name %></span>
+      <% end %>
+      <% if follower.id != current_user.id %>
+      <%= link_to follower.followed_by?(current_user)? "フォロー解除": "フォローする", follow_path(follower.id), class: "button" %>
+      <% end %>
+    </li>
+    <% end %>
+  </ul>
+
+フォローしている人数に関しては、以下のように lengthメソッド を使って
+出力することができます。
+  <p class="follow_count"><%= link_to "フォロワー#{@followers.length}人", follow_list_path(@user) %></p>
+
+データが空の時
+フォローしているユーザーが1件もない場合は、「ユーザーが存在しません。」
+とメッセージが表示されるようにします。
+以下のように、<ul>タグの前後にif文を入れて切り分けます。
+  <!-- フォロワーリスト部分 -->
+  <h1>フォロワー</h1>
+  <% if @followers.any? %>
+  <ul class="users">
+    <% @followers.each do |follower| %>
+    <li>
+      <div style="background: url('<%= image_url(follower) %>'); background-position: 50%; background-size: cover;" class="image"></div>
+      <%= link_to profile_path(follower) do %>
+        <span class="name"><%= follower.name %></span>
+      <% end %>
+      <% if follower.id != current_user.id %>
+      <%= link_to follower.followed_by?(current_user)? "フォロー解除": "フォローする", follow_path(follower.id), class: "button" %>
+      <% end %>
+    </li>
+    <% end %>
+  </ul>
+  <% else %>
+    <p class="empty">ユーザーが存在しません。</p>
+  <% end %>
+
